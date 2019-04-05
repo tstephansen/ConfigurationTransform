@@ -1,20 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using EnvDTE;
 using GolanAvraham.ConfigurationTransform.Remove;
 using GolanAvraham.ConfigurationTransform.Services;
 using GolanAvraham.ConfigurationTransform.Transform;
-using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
 using GolanAvraham.ConfigurationTransform.Services.Extensions;
-using VSLangProj;
+using System.Threading;
 
 namespace GolanAvraham.ConfigurationTransform
 {
@@ -30,7 +25,7 @@ namespace GolanAvraham.ConfigurationTransform
     /// </summary>
     // This attribute tells the PkgDef creation utility (CreatePkgDef.exe) that this class is
     // a package.
-    [PackageRegistration(UseManagedResourcesOnly = true)]
+    [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     // This attribute is used to register the informations needed to show the this package
     // in the Help/About dialog of Visual Studio.
     [InstalledProductRegistration("#110", "#112", "1.3", IconResourceID = 400)]
@@ -38,8 +33,8 @@ namespace GolanAvraham.ConfigurationTransform
     [ProvideMenuResource("Menus.ctmenu", 1)]
     [Guid(GuidList.guidConfigurationTransformPkgString)]
     //Specifies a UI context in which a solution exists.
-    [ProvideAutoLoad("{f1536ef8-92ec-443c-9ed7-fdadf150da82}")]
-    public sealed class ConfigurationTransformPackage : Package
+    [ProvideAutoLoad("{f1536ef8-92ec-443c-9ed7-fdadf150da82}", PackageAutoLoadFlags.BackgroundLoad)]
+    public sealed class ConfigurationTransformPackage : AsyncPackage
     {
         /// <summary>
         /// Default constructor of the package.
@@ -57,17 +52,12 @@ namespace GolanAvraham.ConfigurationTransform
         // Overriden Package Implementation
         #region Package Members
 
-        /// <summary>
-        /// Initialization of the package; this method is called right after the package is sited, so this is the place
-        /// where you can put all the initilaization code that rely on services provided by VisualStudio.
-        /// </summary>
-        protected override void Initialize()
+        protected override async System.Threading.Tasks.Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
-            Trace.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering Initialize() of: {0}", this.ToString()));
-            base.Initialize();
-
+            Trace.WriteLine(string.Format(CultureInfo.CurrentCulture, "Entering InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress) of: {0}", ToString()));
             // Add our command handlers for menu (commands must exist in the .vsct file)
-            var mcs = GetService(typeof(IMenuCommandService)) as OleMenuCommandService;
+            var mcs = await GetServiceAsync(typeof(IMenuCommandService)) as OleMenuCommandService;
+            await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             if (null != mcs)
             {
                 // Transform
@@ -81,7 +71,7 @@ namespace GolanAvraham.ConfigurationTransform
                 mcs.AddCommand(previewOleMenuCommand);
 
                 // Remove
-                RemoveCommand.Create(this, GuidList.ProjectMenuGroupCmdSet, (int) PkgCmdIDList.RemoveCommandId);
+                RemoveCommand.Create(this, GuidList.ProjectMenuGroupCmdSet, (int)PkgCmdIDList.RemoveCommandId);
             }
         }
 
